@@ -84,6 +84,38 @@
               "type": "number"
             },
             {
+              "name": "city",
+              "type": "string"
+            },
+            {
+              "name": "region",
+              "type": "string"
+            },
+            {
+              "name": "country",
+              "type": "string"
+            },
+            {
+              "name": "latitude",
+              "type": "number"
+            },
+            {
+              "name": "longitude",
+              "type": "number"
+            },
+            {
+              "name": "locationAccuracyM",
+              "type": "number"
+            },
+            {
+              "name": "locationSource",
+              "type": "string"
+            },
+            {
+              "name": "locationAt",
+              "type": "date"
+            },
+            {
               "name": "assetTag",
               "type": "string"
             },

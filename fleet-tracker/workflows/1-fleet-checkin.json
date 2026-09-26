@@ -21,7 +21,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Validate the agent payload and keep only the fields we store.\nconst ALLOWED_EVENTS = ['boot', 'logon', 'wake', 'heartbeat', 'shutdown'];\n\nconst req = $input.first().json;\nconst body = req.body && typeof req.body === 'object' ? req.body : {};\nconst headers = req.headers ?? {};\n\nconst clean = (value, max = 200) => {\n\tif (value === undefined || value === null) return null;\n\tconst text = String(value).trim().slice(0, max);\n\treturn text === '' ? null : text;\n};\nconst toIso = (value) => {\n\tconst ms = value ? Date.parse(value) : NaN;\n\treturn Number.isNaN(ms) ? null : new Date(ms).toISOString();\n};\n\nconst deviceId = clean(body.deviceId, 100);\nconst event = (clean(body.event, 20) ?? 'heartbeat').toLowerCase();\n\nconst errors = [];\nif (!deviceId) errors.push('deviceId is required');\nif (!ALLOWED_EVENTS.includes(event)) {\n\terrors.push(`event must be one of: ${ALLOWED_EVENTS.join(', ')}`);\n}\n\n// The first X-Forwarded-For entry is the client when n8n runs behind a proxy.\nconst forwardedFor = clean(headers['x-forwarded-for'], 300);\n\nreturn [\n\t{\n\t\tjson: {\n\t\t\tvalid: errors.length === 0,\n\t\t\terror: errors.join('; '),\n\t\t\tdeviceId,\n\t\t\tevent,\n\t\t\thostname: clean(body.hostname),\n\t\t\tserialNumber: clean(body.serialNumber, 100),\n\t\t\tos: clean(body.os),\n\t\t\tosUser: clean(body.osUser),\n\t\t\tlocalIp: clean(body.localIp, 100),\n\t\t\tpublicIp: forwardedFor ? forwardedFor.split(',')[0].trim() : null,\n\t\t\tagentVersion: clean(body.agentVersion, 20),\n\t\t\tbootAt: toIso(body.bootTime),\n\t\t\treceivedAt: new Date().toISOString(),\n\t\t},\n\t},\n];\n"
+        "jsCode": "// Validate the agent payload and keep only the fields we store.\nconst ALLOWED_EVENTS = ['boot', 'logon', 'wake', 'heartbeat', 'shutdown'];\n\nconst req = $input.first().json;\nconst body = req.body && typeof req.body === 'object' ? req.body : {};\nconst headers = req.headers ?? {};\n\nconst clean = (value, max = 200) => {\n\tif (value === undefined || value === null) return null;\n\tconst text = String(value).trim().slice(0, max);\n\treturn text === '' ? null : text;\n};\nconst toIso = (value) => {\n\tconst ms = value ? Date.parse(value) : NaN;\n\treturn Number.isNaN(ms) ? null : new Date(ms).toISOString();\n};\nconst toNum = (value, min, max) => {\n\tif (value === undefined || value === null || value === '') return null;\n\tconst n = Number(value);\n\treturn Number.isFinite(n) && n >= min && n <= max ? n : null;\n};\n\nconst deviceId = clean(body.deviceId, 100);\nconst event = (clean(body.event, 20) ?? 'heartbeat').toLowerCase();\n\nconst errors = [];\nif (!deviceId) errors.push('deviceId is required');\nif (!ALLOWED_EVENTS.includes(event)) {\n\terrors.push(`event must be one of: ${ALLOWED_EVENTS.join(', ')}`);\n}\n\n// The first X-Forwarded-For entry is the client when n8n runs behind a proxy.\nconst forwardedFor = clean(headers['x-forwarded-for'], 300);\n\nreturn [\n\t{\n\t\tjson: {\n\t\t\tvalid: errors.length === 0,\n\t\t\terror: errors.join('; '),\n\t\t\tdeviceId,\n\t\t\tevent,\n\t\t\thostname: clean(body.hostname),\n\t\t\tserialNumber: clean(body.serialNumber, 100),\n\t\t\tos: clean(body.os),\n\t\t\tosUser: clean(body.osUser),\n\t\t\tlocalIp: clean(body.localIp, 100),\n\t\t\tpublicIp: forwardedFor ? forwardedFor.split(',')[0].trim() : null,\n\t\t\tagentVersion: clean(body.agentVersion, 20),\n\t\t\t// Optional precise location. The agent sends these only when the fleet\n\t\t\t// owner turns on the location option and the OS returns a fix.\n\t\t\tlatitude: toNum(body.latitude, -90, 90),\n\t\t\tlongitude: toNum(body.longitude, -180, 180),\n\t\t\tlocationAccuracyM: toNum(body.locationAccuracy, 0, 100000),\n\t\t\tbootAt: toIso(body.bootTime),\n\t\t\treceivedAt: new Date().toISOString(),\n\t\t},\n\t},\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -99,7 +99,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Decide if this check-in starts a new online session, and build the rows to store.\n// Keep OFFLINE_AFTER_MINUTES equal to the value in the \"Fleet: offline watchdog\" workflow.\nconst OFFLINE_AFTER_MINUTES = 15;\nconst LOGGED_EVENTS = ['boot', 'logon', 'shutdown'];\n\nconst checkin = $('Normalize check-in').first().json;\n// \"Find device\" returns an empty item when the laptop is not known yet.\nconst prev = $input.first().json;\nconst isKnown = Boolean(prev.deviceId);\nconst now = checkin.receivedAt;\n\nconst toIso = (value) => (value ? new Date(value).toISOString() : null);\nconst pick = (key) => checkin[key] ?? prev[key] ?? null;\n\nconst lastSeenMs = prev.lastSeenAt ? new Date(prev.lastSeenAt).getTime() : null;\nconst gapMinutes =\n\tlastSeenMs === null ? null : Math.max(0, Math.round((Date.parse(now) - lastSeenMs) / 60000));\nconst wasOnline =\n\tisKnown && prev.status === 'online' && gapMinutes !== null && gapMinutes <= OFFLINE_AFTER_MINUTES;\n\nconst isShutdown = checkin.event === 'shutdown';\nconst cameOnline = !isShutdown && (!wasOnline || checkin.event === 'boot');\n\nconst device = {\n\tdeviceId: checkin.deviceId,\n\thostname: pick('hostname'),\n\tserialNumber: pick('serialNumber'),\n\tos: pick('os'),\n\tosUser: pick('osUser'),\n\tlocalIp: pick('localIp'),\n\tpublicIp: pick('publicIp'),\n\tagentVersion: pick('agentVersion'),\n\tstatus: isShutdown ? 'offline' : 'online',\n\tlastEvent: checkin.event,\n\tlastSeenAt: now,\n\tlastOnlineAt: cameOnline ? now : (toIso(prev.lastOnlineAt) ?? now),\n\tlastOfflineAt: isShutdown ? now : toIso(prev.lastOfflineAt),\n\tlastBootAt: checkin.bootAt ?? toIso(prev.lastBootAt),\n\tfirstSeenAt: toIso(prev.firstSeenAt) ?? now,\n\tonlineCount: Number(prev.onlineCount ?? 0) + (cameOnline ? 1 : 0),\n};\n\n// Log session changes only. Plain heartbeats update the device row but are not logged.\nconst event =\n\tcameOnline || LOGGED_EVENTS.includes(checkin.event)\n\t\t? {\n\t\t\t\tdeviceId: device.deviceId,\n\t\t\t\thostname: device.hostname,\n\t\t\t\tevent: cameOnline ? 'online' : checkin.event,\n\t\t\t\ttrigger: checkin.event,\n\t\t\t\toccurredAt: now,\n\t\t\t\tofflineMinutes: cameOnline && isKnown ? gapMinutes : null,\n\t\t\t\tosUser: device.osUser,\n\t\t\t\tlocalIp: device.localIp,\n\t\t\t\tpublicIp: device.publicIp,\n\t\t\t}\n\t\t: null;\n\nreturn [{ json: { cameOnline, isNewDevice: !isKnown, device, event } }];\n"
+        "jsCode": "// Decide if this check-in starts a new online session, and build the rows to store.\n// Keep OFFLINE_AFTER_MINUTES equal to the value in the \"Fleet: offline watchdog\" workflow.\nconst OFFLINE_AFTER_MINUTES = 15;\nconst LOGGED_EVENTS = ['boot', 'logon', 'shutdown'];\n\nconst checkin = $('Normalize check-in').first().json;\n// \"Find device\" returns an empty item when the laptop is not known yet.\nconst prev = $input.first().json;\nconst isKnown = Boolean(prev.deviceId);\nconst now = checkin.receivedAt;\n\nconst toIso = (value) => (value ? new Date(value).toISOString() : null);\nconst pick = (key) => checkin[key] ?? prev[key] ?? null;\n\nconst lastSeenMs = prev.lastSeenAt ? new Date(prev.lastSeenAt).getTime() : null;\nconst gapMinutes =\n\tlastSeenMs === null ? null : Math.max(0, Math.round((Date.parse(now) - lastSeenMs) / 60000));\nconst wasOnline =\n\tisKnown && prev.status === 'online' && gapMinutes !== null && gapMinutes <= OFFLINE_AFTER_MINUTES;\n\nconst isShutdown = checkin.event === 'shutdown';\nconst cameOnline = !isShutdown && (!wasOnline || checkin.event === 'boot');\n\nconst device = {\n\tdeviceId: checkin.deviceId,\n\thostname: pick('hostname'),\n\tserialNumber: pick('serialNumber'),\n\tos: pick('os'),\n\tosUser: pick('osUser'),\n\tlocalIp: pick('localIp'),\n\tpublicIp: pick('publicIp'),\n\tagentVersion: pick('agentVersion'),\n\tstatus: isShutdown ? 'offline' : 'online',\n\tlastEvent: checkin.event,\n\tlastSeenAt: now,\n\tlastOnlineAt: cameOnline ? now : (toIso(prev.lastOnlineAt) ?? now),\n\tlastOfflineAt: isShutdown ? now : toIso(prev.lastOfflineAt),\n\tlastBootAt: checkin.bootAt ?? toIso(prev.lastBootAt),\n\tfirstSeenAt: toIso(prev.firstSeenAt) ?? now,\n\tonlineCount: Number(prev.onlineCount ?? 0) + (cameOnline ? 1 : 0),\n\t// Location. Agent GPS wins over IP lookup. Both are filled in later steps\n\t// unless we carry the previous fix forward here.\n\tlatitude: checkin.latitude ?? prev.latitude ?? null,\n\tlongitude: checkin.longitude ?? prev.longitude ?? null,\n\tlocationAccuracyM: checkin.latitude != null ? checkin.locationAccuracyM : (prev.locationAccuracyM ?? null),\n\tlocationSource: checkin.latitude != null ? 'gps' : (prev.locationSource ?? null),\n\tlocationAt: checkin.latitude != null ? now : (toIso(prev.locationAt) ?? null),\n\tcity: prev.city ?? null,\n\tregion: prev.region ?? null,\n\tcountry: prev.country ?? null,\n};\n\n// Log session changes only. Plain heartbeats update the device row but are not logged.\nconst event =\n\tcameOnline || LOGGED_EVENTS.includes(checkin.event)\n\t\t? {\n\t\t\t\tdeviceId: device.deviceId,\n\t\t\t\thostname: device.hostname,\n\t\t\t\tevent: cameOnline ? 'online' : checkin.event,\n\t\t\t\ttrigger: checkin.event,\n\t\t\t\toccurredAt: now,\n\t\t\t\tofflineMinutes: cameOnline && isKnown ? gapMinutes : null,\n\t\t\t\tosUser: device.osUser,\n\t\t\t\tlocalIp: device.localIp,\n\t\t\t\tpublicIp: device.publicIp,\n\t\t\t}\n\t\t: null;\n\n// Look up city/country from the public IP only when the agent gave no GPS fix\n// and the IP is new or changed. This keeps the geo-IP service calls low.\nconst needsGeo =\n\tcheckin.latitude == null &&\n\tBoolean(checkin.publicIp) &&\n\t(checkin.publicIp !== prev.publicIp || !prev.locationSource);\n\nreturn [\n\t{ json: { cameOnline, isNewDevice: !isKnown, needsGeo, publicIp: checkin.publicIp, device, event } },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -112,13 +112,87 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8c6ee24e-8e6e-5747-9089-77b2812a2aff",
+              "leftValue": "={{ $json.needsGeo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1080,
+        -160
+      ],
+      "id": "e31de98f-37b3-5650-80f0-78099e3473fd",
+      "name": "Needs geo?"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://ipwho.is/{{ $json.publicIp }}",
+        "authentication": "none",
+        "sendQuery": false,
+        "sendHeaders": false,
+        "sendBody": false,
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 8000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1300,
+        -260
+      ],
+      "id": "2aabff35-e7ab-5d9f-90d6-e5cea2794d2f",
+      "name": "Geo lookup",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fold the geo-IP lookup result into the device row, then hand it to the upsert.\n// The lookup service (ipwho.is by default) returns success/city/region/country/latitude/longitude.\nconst { device, publicIp } = $('Evaluate session').first().json;\nconst geo = $input.first().json ?? {};\n\nif (geo.success && typeof geo.latitude === 'number') {\n\tdevice.city = geo.city ?? null;\n\tdevice.region = geo.region ?? null;\n\tdevice.country = geo.country ?? null;\n\tdevice.latitude = geo.latitude;\n\tdevice.longitude = geo.longitude;\n\tdevice.locationAccuracyM = null; // City-level only.\n\tdevice.locationSource = 'ip';\n\tdevice.locationAt = new Date().toISOString();\n\tdevice.publicIp = publicIp;\n}\n\nreturn [{ json: device }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -260
+      ],
+      "id": "95c4e12c-ff4f-5564-b042-0f6e61d5ad1c",
+      "name": "Merge geo"
+    },
+    {
+      "parameters": {
         "jsCode": "return [{ json: $input.first().json.device }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
-        -200
+        1300,
+        -60
       ],
       "id": "e58a66b0-b0dc-5424-bcd3-d0ae2692c37d",
       "name": "Device row"
@@ -155,8 +229,8 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        1320,
-        -200
+        1740,
+        -160
       ],
       "id": "295a9e8c-265d-52a0-acd8-b7187fd07cd6",
       "name": "Save device"
@@ -172,8 +246,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1540,
-        -200
+        1960,
+        -160
       ],
       "id": "0581d9ae-65a6-57fb-90ab-928a08332cf0",
       "name": "Respond OK"
@@ -308,12 +382,52 @@
       "main": [
         [
           {
-            "node": "Device row",
+            "node": "Needs geo?",
             "type": "main",
             "index": 0
           },
           {
             "node": "Event row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs geo?": {
+      "main": [
+        [
+          {
+            "node": "Geo lookup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Device row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geo lookup": {
+      "main": [
+        [
+          {
+            "node": "Merge geo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge geo": {
+      "main": [
+        [
+          {
+            "node": "Save device",
             "type": "main",
             "index": 0
           }

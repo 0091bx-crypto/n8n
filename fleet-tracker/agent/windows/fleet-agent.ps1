@@ -45,7 +45,32 @@ try {
 		Select-Object -First 1).IPv4Address.IPAddress
 } catch { }
 
-$payload = [ordered]@{
+# Precise location. Off unless the fleet owner set "location": true in config.json.
+# The server also derives an approximate location from the internet IP, so this
+# is only needed when the fleet owner wants a precise fix and has told renters.
+# It returns a fix only when Windows Location Services are on for the device.
+function Get-DeviceLocation {
+	try {
+		[void][Windows.Devices.Geolocation.Geolocator, Windows.Devices.Geolocation, ContentType = WindowsRuntime]
+		$locator = New-Object Windows.Devices.Geolocation.Geolocator
+		$locator.DesiredAccuracyInMeters = 100
+		$op = $locator.GetGeopositionAsync()
+		# Await the WinRT async operation with a timeout.
+		$task = [System.WindowsRuntimeSystemExtensions]::AsTask($op)
+		if (-not $task.Wait(15000)) { return $null }
+		$c = $task.Result.Coordinate
+		return @{
+			latitude = [math]::Round($c.Point.Position.Latitude, 6)
+			longitude = [math]::Round($c.Point.Position.Longitude, 6)
+			accuracy = [int]$c.Accuracy
+		}
+	} catch {
+		Write-AgentLog "location unavailable: $($_.Exception.Message)"
+		return $null
+	}
+}
+
+$body = [ordered]@{
 	deviceId     = $deviceId
 	event        = $EventName
 	hostname     = $env:COMPUTERNAME
@@ -55,7 +80,18 @@ $payload = [ordered]@{
 	localIp      = $localIp
 	bootTime     = $os.LastBootUpTime.ToUniversalTime().ToString('o')
 	agentVersion = $AgentVersion
-} | ConvertTo-Json -Compress
+}
+
+if ($config.location -eq $true -and $EventName -ne 'shutdown') {
+	$fix = Get-DeviceLocation
+	if ($fix) {
+		$body.latitude = $fix.latitude
+		$body.longitude = $fix.longitude
+		$body.locationAccuracy = $fix.accuracy
+	}
+}
+
+$payload = $body | ConvertTo-Json -Compress
 
 # The network is often not ready right after boot or wake, so retry for about 5 minutes.
 # A shutdown gets one quick try so it does not delay the shutdown.

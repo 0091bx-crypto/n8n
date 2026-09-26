@@ -63,6 +63,10 @@ event table stays small.
 | `lastBootAt` | Boot time that the laptop reported. |
 | `firstSeenAt` | Time of the first check-in. |
 | `onlineCount` | Number of online sessions. |
+| `city`, `region`, `country`, `latitude`, `longitude` | Last known location. See "Location tracking" below. |
+| `locationSource` | `ip` for the approximate location from the internet IP, or `gps` for a precise fix from the laptop. |
+| `locationAccuracyM` | Fix accuracy in metres, for `gps` fixes only. |
+| `locationAt` | Time of the last location. |
 | `assetTag`, `rentedTo`, `notes` | Fill these by hand. The agents never change them. |
 
 `fleet_events` has one row for each session change: `online`, `offline`,
@@ -145,6 +149,61 @@ first heartbeat after a long gap starts a new session. Logs go to
 
 To remove the agent, run `sudo ./uninstall.sh`.
 
+## Location tracking
+
+The tracker records where each laptop is. It shows the location on the status
+page with a link to a map.
+
+### Before you turn it on: tell the renters
+
+Tracking the location of a device that someone else holds is regulated in many
+places. In several countries you must tell the person and, for precise
+tracking, get their agreement. Do this before you deploy:
+
+- State in the rental agreement that the laptop reports its status and
+  location to you, and why.
+- Keep a short notice on the laptop, for example on the desktop or in the
+  welcome pack.
+- Collect only what you need. The approximate location below is enough for
+  most fleet management. Keep precise location for recovery of overdue or
+  missing units.
+
+You are responsible for following the laws that apply to you. This tool does
+not give legal advice.
+
+### Approximate location (on by default)
+
+The check-in workflow turns each laptop's internet IP into an approximate
+city, region, and country. It stores the values and shows them on the status
+page. This needs no extra software on the laptop. It is city-level only, not a
+street address.
+
+The workflow calls the free service `https://ipwho.is`. To use a different
+service, change the **Geo lookup** node in **Fleet: laptop check-in**. The
+**Merge geo** node after it reads `success`, `city`, `region`, `country`,
+`latitude`, and `longitude` from the reply, so map those fields if the new
+service uses other names. The workflow looks up the IP only when it is new or
+changed, to keep the number of calls low.
+
+### Precise location (opt-in, Windows only)
+
+When you turn it on, the Windows agent asks Windows for a precise location
+(GPS if present, or Wi-Fi and network position). It sends this instead of the
+IP-based location. It returns a fix only when **Location Services** are on for
+the device and for desktop apps.
+
+Turn it on at install time:
+
+```powershell
+.\install.ps1 -Url https://<your-n8n>/webhook/fleet/checkin -Token <token> -Location
+```
+
+The agent never sends a precise location on shutdown, and it degrades to the
+IP-based location when Windows returns no fix.
+
+The Linux and macOS agents send the IP-based location only. Most rental
+laptops of those types have no location hardware.
+
 ## Limits
 
 - A laptop that loses power or network cannot send a shutdown event. The
@@ -153,5 +212,8 @@ To remove the agent, run `sudo ./uninstall.sh`.
   real time can be up to 5 minutes later.
 - `publicIp` comes from the `X-Forwarded-For` header. It is empty when no
   reverse proxy is in front of n8n.
+- The approximate location from the internet IP is city-level and can be
+  wrong, for example on mobile networks or VPNs. Use precise location when
+  you need a reliable position.
 - Times are in UTC. The status page shows relative times, for example
   `5 min ago`. Hover over a time to see the exact value.

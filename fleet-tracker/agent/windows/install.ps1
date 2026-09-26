@@ -7,7 +7,10 @@
 param(
 	[Parameter(Mandatory)] [string]$Url,
 	[Parameter(Mandatory)] [string]$Token,
-	[int]$HeartbeatMinutes = 5
+	[int]$HeartbeatMinutes = 5,
+	# Turn on precise GPS/Wi-Fi location. Only use it when your rental
+	# agreement discloses location tracking and Location Services are allowed.
+	[switch]$Location
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,7 +24,9 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'fleet-agent.ps1') $InstallDir -Force
-@{ url = $Url; token = $Token } | ConvertTo-Json | Set-Content (Join-Path $InstallDir 'config.json') -Encoding UTF8
+@{ url = $Url; token = $Token; location = [bool]$Location } | ConvertTo-Json |
+	Set-Content (Join-Path $InstallDir 'config.json') -Encoding UTF8
+if ($Location) { Write-Host 'Precise location is ON. Make sure renters are told and Location Services are enabled.' }
 
 # The config holds the token. Only SYSTEM and administrators can read the folder.
 icacls $InstallDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null

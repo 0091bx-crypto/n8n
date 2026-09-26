@@ -13,6 +13,10 @@ send() {
 }
 
 send SIM-0001 boot LT-RENT-01
+printf 'X-Fleet-Token: %s\n' "$FLEET_TOKEN" | curl -fsS -H 'Content-Type: application/json' -H @- \
+	-d '{"deviceId":"SIM-0004","event":"heartbeat","hostname":"LT-RENT-04-gps","os":"Windows 11 Pro","latitude":48.8566,"longitude":2.3522,"locationAccuracy":22,"agentVersion":"sim"}' \
+	"$FLEET_URL"
+echo
 send SIM-0002 boot LT-RENT-02
 send SIM-0002 logon LT-RENT-02
 send SIM-0003 heartbeat LT-RENT-03

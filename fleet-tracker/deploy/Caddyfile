@@ -1,0 +1,8 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Caddy gets a free Let's Encrypt certificate for this domain automatically.
+{$DOMAIN} {
+	reverse_proxy n8n:5678
+}

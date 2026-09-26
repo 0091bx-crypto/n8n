@@ -1,0 +1,365 @@
+{
+  "name": "Fleet: laptop check-in",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fleet/checkin",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ddc21bf6-9ecf-515c-bdef-dd69e3512c36",
+      "name": "Check-in webhook",
+      "webhookId": "70d6516a-790d-5cc3-a324-af7c8662d0e8"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate the agent payload and keep only the fields we store.\nconst ALLOWED_EVENTS = ['boot', 'logon', 'wake', 'heartbeat', 'shutdown'];\n\nconst req = $input.first().json;\nconst body = req.body && typeof req.body === 'object' ? req.body : {};\nconst headers = req.headers ?? {};\n\nconst clean = (value, max = 200) => {\n\tif (value === undefined || value === null) return null;\n\tconst text = String(value).trim().slice(0, max);\n\treturn text === '' ? null : text;\n};\nconst toIso = (value) => {\n\tconst ms = value ? Date.parse(value) : NaN;\n\treturn Number.isNaN(ms) ? null : new Date(ms).toISOString();\n};\n\nconst deviceId = clean(body.deviceId, 100);\nconst event = (clean(body.event, 20) ?? 'heartbeat').toLowerCase();\n\nconst errors = [];\nif (!deviceId) errors.push('deviceId is required');\nif (!ALLOWED_EVENTS.includes(event)) {\n\terrors.push(`event must be one of: ${ALLOWED_EVENTS.join(', ')}`);\n}\n\n// The first X-Forwarded-For entry is the client when n8n runs behind a proxy.\nconst forwardedFor = clean(headers['x-forwarded-for'], 300);\n\nreturn [\n\t{\n\t\tjson: {\n\t\t\tvalid: errors.length === 0,\n\t\t\terror: errors.join('; '),\n\t\t\tdeviceId,\n\t\t\tevent,\n\t\t\thostname: clean(body.hostname),\n\t\t\tserialNumber: clean(body.serialNumber, 100),\n\t\t\tos: clean(body.os),\n\t\t\tosUser: clean(body.osUser),\n\t\t\tlocalIp: clean(body.localIp, 100),\n\t\t\tpublicIp: forwardedFor ? forwardedFor.split(',')[0].trim() : null,\n\t\t\tagentVersion: clean(body.agentVersion, 20),\n\t\t\tbootAt: toIso(body.bootTime),\n\t\t\treceivedAt: new Date().toISOString(),\n\t\t},\n\t},\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "d426972f-dc83-5680-bb18-552344357c4c",
+      "name": "Normalize check-in"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "16d72d37-7e2a-5554-95bd-ee71de9398f9",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "21cb553e-6f10-5035-aed6-c6e5bf8f4d0a",
+      "name": "Is valid?"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "fleet_devices"
+        },
+        "matchType": "anyCondition",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "deviceId",
+              "condition": "eq",
+              "keyValue": "={{ $json.deviceId }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        -100
+      ],
+      "id": "9d36a77c-c518-5d4b-8f62-e1def8b2e4c3",
+      "name": "Find device",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decide if this check-in starts a new online session, and build the rows to store.\n// Keep OFFLINE_AFTER_MINUTES equal to the value in the \"Fleet: offline watchdog\" workflow.\nconst OFFLINE_AFTER_MINUTES = 15;\nconst LOGGED_EVENTS = ['boot', 'logon', 'shutdown'];\n\nconst checkin = $('Normalize check-in').first().json;\n// \"Find device\" returns an empty item when the laptop is not known yet.\nconst prev = $input.first().json;\nconst isKnown = Boolean(prev.deviceId);\nconst now = checkin.receivedAt;\n\nconst toIso = (value) => (value ? new Date(value).toISOString() : null);\nconst pick = (key) => checkin[key] ?? prev[key] ?? null;\n\nconst lastSeenMs = prev.lastSeenAt ? new Date(prev.lastSeenAt).getTime() : null;\nconst gapMinutes =\n\tlastSeenMs === null ? null : Math.max(0, Math.round((Date.parse(now) - lastSeenMs) / 60000));\nconst wasOnline =\n\tisKnown && prev.status === 'online' && gapMinutes !== null && gapMinutes <= OFFLINE_AFTER_MINUTES;\n\nconst isShutdown = checkin.event === 'shutdown';\nconst cameOnline = !isShutdown && (!wasOnline || checkin.event === 'boot');\n\nconst device = {\n\tdeviceId: checkin.deviceId,\n\thostname: pick('hostname'),\n\tserialNumber: pick('serialNumber'),\n\tos: pick('os'),\n\tosUser: pick('osUser'),\n\tlocalIp: pick('localIp'),\n\tpublicIp: pick('publicIp'),\n\tagentVersion: pick('agentVersion'),\n\tstatus: isShutdown ? 'offline' : 'online',\n\tlastEvent: checkin.event,\n\tlastSeenAt: now,\n\tlastOnlineAt: cameOnline ? now : (toIso(prev.lastOnlineAt) ?? now),\n\tlastOfflineAt: isShutdown ? now : toIso(prev.lastOfflineAt),\n\tlastBootAt: checkin.bootAt ?? toIso(prev.lastBootAt),\n\tfirstSeenAt: toIso(prev.firstSeenAt) ?? now,\n\tonlineCount: Number(prev.onlineCount ?? 0) + (cameOnline ? 1 : 0),\n};\n\n// Log session changes only. Plain heartbeats update the device row but are not logged.\nconst event =\n\tcameOnline || LOGGED_EVENTS.includes(checkin.event)\n\t\t? {\n\t\t\t\tdeviceId: device.deviceId,\n\t\t\t\thostname: device.hostname,\n\t\t\t\tevent: cameOnline ? 'online' : checkin.event,\n\t\t\t\ttrigger: checkin.event,\n\t\t\t\toccurredAt: now,\n\t\t\t\tofflineMinutes: cameOnline && isKnown ? gapMinutes : null,\n\t\t\t\tosUser: device.osUser,\n\t\t\t\tlocalIp: device.localIp,\n\t\t\t\tpublicIp: device.publicIp,\n\t\t\t}\n\t\t: null;\n\nreturn [{ json: { cameOnline, isNewDevice: !isKnown, device, event } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -100
+      ],
+      "id": "a9269c4e-30c6-5840-a0d8-60e2d06882ac",
+      "name": "Evaluate session"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: $input.first().json.device }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        -200
+      ],
+      "id": "e58a66b0-b0dc-5424-bcd3-d0ae2692c37d",
+      "name": "Device row"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "fleet_devices"
+        },
+        "matchType": "anyCondition",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "deviceId",
+              "condition": "eq",
+              "keyValue": "={{ $json.deviceId }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        -200
+      ],
+      "id": "295a9e8c-265d-52a0-acd8-b7187fd07cd6",
+      "name": "Save device"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, status: $json.status, cameOnline: $('Evaluate session').first().json.cameOnline }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1540,
+        -200
+      ],
+      "id": "0581d9ae-65a6-57fb-90ab-928a08332cf0",
+      "name": "Respond OK"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Stop this branch when the check-in is a plain heartbeat.\nconst event = $input.first().json.event;\nreturn event ? [{ json: event }] : [];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "58997838-3233-562e-9940-7a3650be563a",
+      "name": "Event row"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "fleet_events"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ],
+      "id": "f69b7853-bbe4-5f20-a891-8aad96a62237",
+      "name": "Log event"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        660,
+        140
+      ],
+      "id": "e373e44a-cfc3-540c-9e5b-7b69316da760",
+      "name": "Respond 400"
+    },
+    {
+      "parameters": {
+        "content": "## Laptop check-in\nThe fleet agent sends `POST /webhook/fleet/checkin` on boot, logon, wake, shutdown and every 5 minutes.\n\n1. Create a **Header Auth** credential: name `X-Fleet-Token`, value = a long random secret. Select it on **Check-in webhook**.\n2. Activate the workflow.\n\nA check-in counts as **came online** when the laptop is new, was offline, was silent for more than 15 minutes, or just booted. Each session change goes to `fleet_events`. To send an alert, connect a Slack or email node after **Log event** and filter on `event = online`.",
+        "width": 560,
+        "height": 330
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -480
+      ],
+      "id": "209b4aa5-24d4-5048-a9d5-2399e093a808",
+      "name": "About"
+    }
+  ],
+  "connections": {
+    "Check-in webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize check-in",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize check-in": {
+      "main": [
+        [
+          {
+            "node": "Is valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is valid?": {
+      "main": [
+        [
+          {
+            "node": "Find device",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find device": {
+      "main": [
+        [
+          {
+            "node": "Evaluate session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate session": {
+      "main": [
+        [
+          {
+            "node": "Device row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Event row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Device row": {
+      "main": [
+        [
+          {
+            "node": "Save device",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save device": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event row": {
+      "main": [
+        [
+          {
+            "node": "Log event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -1,0 +1,213 @@
+{
+  "name": "Fleet: setup data tables",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "6deff7a9-8da8-56b6-8c83-c03c910f7609",
+      "name": "Run once"
+    },
+    {
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "fleet_devices",
+        "columns": {
+          "column": [
+            {
+              "name": "deviceId",
+              "type": "string"
+            },
+            {
+              "name": "hostname",
+              "type": "string"
+            },
+            {
+              "name": "serialNumber",
+              "type": "string"
+            },
+            {
+              "name": "os",
+              "type": "string"
+            },
+            {
+              "name": "osUser",
+              "type": "string"
+            },
+            {
+              "name": "localIp",
+              "type": "string"
+            },
+            {
+              "name": "publicIp",
+              "type": "string"
+            },
+            {
+              "name": "agentVersion",
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "type": "string"
+            },
+            {
+              "name": "lastEvent",
+              "type": "string"
+            },
+            {
+              "name": "lastSeenAt",
+              "type": "date"
+            },
+            {
+              "name": "lastOnlineAt",
+              "type": "date"
+            },
+            {
+              "name": "lastOfflineAt",
+              "type": "date"
+            },
+            {
+              "name": "lastBootAt",
+              "type": "date"
+            },
+            {
+              "name": "firstSeenAt",
+              "type": "date"
+            },
+            {
+              "name": "onlineCount",
+              "type": "number"
+            },
+            {
+              "name": "assetTag",
+              "type": "string"
+            },
+            {
+              "name": "rentedTo",
+              "type": "string"
+            },
+            {
+              "name": "notes",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        -100
+      ],
+      "id": "6b8c8c24-1f87-526c-b721-dc0b3dfa419e",
+      "name": "Create fleet_devices"
+    },
+    {
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "fleet_events",
+        "columns": {
+          "column": [
+            {
+              "name": "deviceId",
+              "type": "string"
+            },
+            {
+              "name": "hostname",
+              "type": "string"
+            },
+            {
+              "name": "event",
+              "type": "string"
+            },
+            {
+              "name": "trigger",
+              "type": "string"
+            },
+            {
+              "name": "occurredAt",
+              "type": "date"
+            },
+            {
+              "name": "offlineMinutes",
+              "type": "number"
+            },
+            {
+              "name": "osUser",
+              "type": "string"
+            },
+            {
+              "name": "localIp",
+              "type": "string"
+            },
+            {
+              "name": "publicIp",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        100
+      ],
+      "id": "9d1fbf7d-161d-5fac-a578-a7641c6aeacf",
+      "name": "Create fleet_events"
+    },
+    {
+      "parameters": {
+        "content": "## Run this once\nIt creates the `fleet_devices` and `fleet_events` data tables. It is safe to run again: existing tables are kept.\n\nAfter the check-in, fill `assetTag`, `rentedTo` and `notes` in `fleet_devices` by hand. The agents never overwrite them.",
+        "width": 460,
+        "height": 220
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -380
+      ],
+      "id": "209b4aa5-24d4-5048-a9d5-2399e093a808",
+      "name": "About"
+    }
+  ],
+  "connections": {
+    "Run once": {
+      "main": [
+        [
+          {
+            "node": "Create fleet_devices",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create fleet_events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

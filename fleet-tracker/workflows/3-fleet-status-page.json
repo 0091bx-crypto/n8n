@@ -1,0 +1,185 @@
+{
+  "name": "Fleet: status page",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "fleet/status",
+        "authentication": "basicAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b6a6b001-a455-5089-8ce0-d437276f92f9",
+      "name": "Status page",
+      "webhookId": "1dd7df6c-a541-5d76-b635-e5c4981d7ac8"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "fleet_devices"
+        },
+        "matchType": "anyCondition",
+        "filters": {},
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        0
+      ],
+      "id": "4f5465e6-a0a5-5607-b8b8-45764d296c71",
+      "name": "List devices",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "fleet_events"
+        },
+        "matchType": "anyCondition",
+        "filters": {},
+        "returnAll": false,
+        "limit": 100,
+        "orderBy": true,
+        "orderByColumn": "occurredAt",
+        "orderByDirection": "DESC"
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "id": "3db07697-f9d3-50f1-96c6-1a38eefefae0",
+      "name": "Recent events",
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Render the fleet status page. Add ?format=json to the URL to get JSON instead.\n// Keep OFFLINE_AFTER_MINUTES equal to the value in the other fleet workflows.\nconst OFFLINE_AFTER_MINUTES = 15;\n\nconst nowMs = Date.now();\nconst query = $('Status page').first().json.query ?? {};\nconst toMs = (value) => (value ? new Date(value).getTime() : null);\n\nconst devices = $('List devices')\n\t.all()\n\t.map((item) => item.json)\n\t.filter((row) => row.deviceId)\n\t.map((row) => {\n\t\tconst lastSeenMs = toMs(row.lastSeenAt);\n\t\t// The watchdog runs every few minutes, so check the age here too.\n\t\tconst online =\n\t\t\trow.status === 'online' &&\n\t\t\tlastSeenMs !== null &&\n\t\t\tnowMs - lastSeenMs <= OFFLINE_AFTER_MINUTES * 60000;\n\t\treturn { ...row, online };\n\t})\n\t.sort((a, b) => Number(b.online) - Number(a.online) || toMs(b.lastSeenAt) - toMs(a.lastSeenAt));\n\nconst events = $input\n\t.all()\n\t.map((item) => item.json)\n\t.filter((row) => row.deviceId);\n\nconst summary = {\n\ttotal: devices.length,\n\tonline: devices.filter((d) => d.online).length,\n\toffline: devices.filter((d) => !d.online).length,\n\tcameOnlineToday: new Set(\n\t\tevents\n\t\t\t.filter((e) => e.event === 'online' && nowMs - toMs(e.occurredAt) < 24 * 3600000)\n\t\t\t.map((e) => e.deviceId),\n\t).size,\n\tgeneratedAt: new Date(nowMs).toISOString(),\n};\n\nif (query.format === 'json') {\n\treturn [\n\t\t{\n\t\t\tjson: {\n\t\t\t\tcontentType: 'application/json; charset=utf-8',\n\t\t\t\tbody: JSON.stringify({ summary, devices, events }, null, 2),\n\t\t\t},\n\t\t},\n\t];\n}\n\nconst esc = (value) =>\n\tString(value ?? '')\n\t\t.replace(/&/g, '&amp;')\n\t\t.replace(/</g, '&lt;')\n\t\t.replace(/>/g, '&gt;')\n\t\t.replace(/\"/g, '&quot;')\n\t\t.replace(/'/g, '&#39;');\n\nconst ago = (value) => {\n\tconst ms = toMs(value);\n\tif (ms === null) return '<span class=\"muted\">never</span>';\n\tconst minutes = Math.round((nowMs - ms) / 60000);\n\tlet text;\n\tif (minutes < 1) text = 'just now';\n\telse if (minutes < 60) text = `${minutes} min ago`;\n\telse if (minutes < 48 * 60) text = `${Math.round(minutes / 60)} h ago`;\n\telse text = `${Math.round(minutes / 1440)} d ago`;\n\treturn `<time datetime=\"${esc(new Date(ms).toISOString())}\" title=\"${esc(new Date(ms).toISOString())}\">${text}</time>`;\n};\n\nconst badge = (online) =>\n\tonline ? '<span class=\"badge on\">Online</span>' : '<span class=\"badge off\">Offline</span>';\n\nconst deviceRows = devices\n\t.map(\n\t\t(d) => `<tr data-search=\"${esc([d.deviceId, d.hostname, d.assetTag, d.rentedTo, d.osUser, d.serialNumber].join(' ').toLowerCase())}\">\n<td>${badge(d.online)}</td>\n<td><strong>${esc(d.assetTag || d.hostname || d.deviceId)}</strong><div class=\"muted\">${[d.hostname, d.serialNumber || d.deviceId].filter(Boolean).map(esc).join(' \u00b7 ')}</div></td>\n<td>${esc(d.rentedTo) || '<span class=\"muted\">-</span>'}</td>\n<td>${esc(d.osUser) || '<span class=\"muted\">-</span>'}</td>\n<td>${ago(d.lastOnlineAt)}</td>\n<td>${ago(d.lastSeenAt)}</td>\n<td>${ago(d.lastOfflineAt)}</td>\n<td class=\"num\">${esc(d.onlineCount ?? 0)}</td>\n<td>${esc(d.localIp)}<div class=\"muted\">${esc(d.publicIp)}</div></td>\n</tr>`,\n\t)\n\t.join('\\n');\n\nconst eventLabels = { online: 'Came online', offline: 'Went offline', logon: 'User logged on', shutdown: 'Shut down', boot: 'Booted' };\nconst eventRows = events\n\t.map(\n\t\t(e) => `<tr data-search=\"${esc([e.deviceId, e.hostname, e.osUser].join(' ').toLowerCase())}\">\n<td>${ago(e.occurredAt)}</td>\n<td><span class=\"dot ${esc(e.event)}\"></span>${esc(eventLabels[e.event] ?? e.event)}<span class=\"muted\"> via ${esc(e.trigger)}</span></td>\n<td>${esc(e.hostname || e.deviceId)}</td>\n<td>${esc(e.osUser) || '<span class=\"muted\">-</span>'}</td>\n<td class=\"num\">${e.offlineMinutes === null || e.offlineMinutes === undefined ? '<span class=\"muted\">-</span>' : esc(e.offlineMinutes)}</td>\n</tr>`,\n\t)\n\t.join('\\n');\n\nconst html = `<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta http-equiv=\"refresh\" content=\"60\">\n<title>Rental fleet status</title>\n<style>\n:root { --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #6b7280; --line: #e5e7eb; --on: #15803d; --on-bg: #dcfce7; --off: #b91c1c; --off-bg: #fee2e2; }\n@media (prefers-color-scheme: dark) { :root { --bg: #0f1115; --card: #181b22; --text: #e5e7eb; --muted: #9ca3af; --line: #2a2f3a; --on: #4ade80; --on-bg: #14361f; --off: #f87171; --off-bg: #3b1616; } }\n* { box-sizing: border-box; }\nbody { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }\nmain { max-width: 1200px; margin: 0 auto; }\nh1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 8px; }\n.muted { color: var(--muted); font-size: 12px; }\n.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }\n.stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }\n.stat b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }\n.wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }\ntable { width: 100%; border-collapse: collapse; }\nth, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }\nth { font-size: 12px; color: var(--muted); font-weight: 600; }\ntr:last-child td { border-bottom: 0; }\n.num { text-align: right; font-variant-numeric: tabular-nums; }\n.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }\n.badge.on { color: var(--on); background: var(--on-bg); } .badge.off { color: var(--off); background: var(--off-bg); }\n.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--muted); }\n.dot.online { background: var(--on); } .dot.offline, .dot.shutdown { background: var(--off); }\ninput[type=search] { width: 100%; max-width: 360px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; }\n</style>\n</head>\n<body>\n<main>\n<h1>Rental fleet status</h1>\n<div class=\"muted\">Updated ${esc(summary.generatedAt)} \u00b7 refreshes every minute \u00b7 offline after ${OFFLINE_AFTER_MINUTES} min without a check-in</div>\n<div class=\"stats\">\n<div class=\"stat\"><b>${summary.total}</b>Laptops</div>\n<div class=\"stat\"><b style=\"color:var(--on)\">${summary.online}</b>Online now</div>\n<div class=\"stat\"><b style=\"color:var(--off)\">${summary.offline}</b>Offline</div>\n<div class=\"stat\"><b>${summary.cameOnlineToday}</b>Came online in 24 h</div>\n</div>\n<input type=\"search\" id=\"q\" placeholder=\"Filter by hostname, asset tag, renter or user\" aria-label=\"Filter\">\n<h2>Laptops</h2>\n<div class=\"wrap\"><table>\n<thead><tr><th>Status</th><th>Laptop</th><th>Rented to</th><th>User</th><th>Last came online</th><th>Last seen</th><th>Last offline</th><th class=\"num\">Sessions</th><th>IP</th></tr></thead>\n<tbody>${deviceRows || '<tr><td colspan=\"9\" class=\"muted\">No laptop has checked in yet.</td></tr>'}</tbody>\n</table></div>\n<h2>Recent activity</h2>\n<div class=\"wrap\"><table>\n<thead><tr><th>When</th><th>Event</th><th>Laptop</th><th>User</th><th class=\"num\">Was offline (min)</th></tr></thead>\n<tbody>${eventRows || '<tr><td colspan=\"5\" class=\"muted\">No activity yet.</td></tr>'}</tbody>\n</table></div>\n</main>\n<script>\ndocument.getElementById('q').addEventListener('input', (e) => {\n\tconst q = e.target.value.trim().toLowerCase();\n\tdocument.querySelectorAll('tr[data-search]').forEach((row) => {\n\t\trow.hidden = q !== '' && !row.dataset.search.includes(q);\n\t});\n});\n</script>\n</body>\n</html>`;\n\nreturn [{ json: { contentType: 'text/html; charset=utf-8', body: html } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "3fa90af2-10fc-52f2-ac9e-215210b20901",
+      "name": "Render page"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.contentType }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        880,
+        0
+      ],
+      "id": "0ab03672-6b81-5b43-9f24-9aa844866202",
+      "name": "Send page"
+    },
+    {
+      "parameters": {
+        "content": "## Status page\nOpen `GET /webhook/fleet/status` in a browser. Add `?format=json` for JSON.\n\nCreate a **Basic Auth** credential and select it on **Status page**, then activate the workflow.",
+        "width": 460,
+        "height": 200
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -300
+      ],
+      "id": "209b4aa5-24d4-5048-a9d5-2399e093a808",
+      "name": "About"
+    }
+  ],
+  "connections": {
+    "Status page": {
+      "main": [
+        [
+          {
+            "node": "List devices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List devices": {
+      "main": [
+        [
+          {
+            "node": "Recent events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recent events": {
+      "main": [
+        [
+          {
+            "node": "Render page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render page": {
+      "main": [
+        [
+          {
+            "node": "Send page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

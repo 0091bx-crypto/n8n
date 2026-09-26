@@ -1,0 +1,227 @@
+{
+  "name": "Fleet: offline watchdog",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a3943dc6-ddd2-53ef-b0be-60b3bfbc4671",
+      "name": "Every 5 minutes"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "fleet_devices"
+        },
+        "matchType": "anyCondition",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "online"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        0
+      ],
+      "id": "0891abc3-a74b-5273-b8b7-b56f21aa2d97",
+      "name": "List online devices"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mark a laptop offline when it has not checked in for OFFLINE_AFTER_MINUTES.\n// Keep this value equal to the one in the \"Fleet: laptop check-in\" workflow.\nconst OFFLINE_AFTER_MINUTES = 15;\nconst cutoff = Date.now() - OFFLINE_AFTER_MINUTES * 60000;\n\nreturn $input\n\t.all()\n\t.filter((item) => item.json.deviceId && new Date(item.json.lastSeenAt).getTime() < cutoff)\n\t.map((item) => ({\n\t\tjson: {\n\t\t\tdeviceId: item.json.deviceId,\n\t\t\tstatus: 'offline',\n\t\t\tlastEvent: 'timeout',\n\t\t\t// The laptop went offline some time after its last check-in.\n\t\t\tlastOfflineAt: new Date(item.json.lastSeenAt).toISOString(),\n\t\t},\n\t}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "10f700cb-bfbd-5a4f-b6a7-f8b19eb29780",
+      "name": "Find stale devices"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "fleet_devices"
+        },
+        "matchType": "anyCondition",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "deviceId",
+              "condition": "eq",
+              "keyValue": "={{ $json.deviceId }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "id": "7928adcc-494f-5129-910e-169027e4da1a",
+      "name": "Mark offline"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date().toISOString();\n\nreturn $input.all().map((item) => ({\n\tjson: {\n\t\tdeviceId: item.json.deviceId,\n\t\thostname: item.json.hostname ?? null,\n\t\tevent: 'offline',\n\t\ttrigger: 'timeout',\n\t\toccurredAt: item.json.lastOfflineAt ? new Date(item.json.lastOfflineAt).toISOString() : now,\n\t\tofflineMinutes: null,\n\t\tosUser: item.json.osUser ?? null,\n\t\tlocalIp: item.json.localIp ?? null,\n\t\tpublicIp: item.json.publicIp ?? null,\n\t},\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "id": "1302da67-babf-5a3f-8c68-e48feab02e2e",
+      "name": "Offline event rows"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "fleet_events"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "36434a88-11d2-5308-a4a6-bdedb4ab7e4e",
+      "name": "Log offline event"
+    },
+    {
+      "parameters": {
+        "content": "## Offline watchdog\nEvery 5 minutes, laptops marked online with no check-in for 15 minutes are set to offline. Each one gets an `offline` event.\n\nActivate this workflow together with the check-in workflow.",
+        "width": 460,
+        "height": 200
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -300
+      ],
+      "id": "209b4aa5-24d4-5048-a9d5-2399e093a808",
+      "name": "About"
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "List online devices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List online devices": {
+      "main": [
+        [
+          {
+            "node": "Find stale devices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find stale devices": {
+      "main": [
+        [
+          {
+            "node": "Mark offline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark offline": {
+      "main": [
+        [
+          {
+            "node": "Offline event rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offline event rows": {
+      "main": [
+        [
+          {
+            "node": "Log offline event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

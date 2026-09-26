@@ -1,0 +1,900 @@
+<title>Batch Manufacturing Ledger</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+	--bg: #eef1f0;
+	--surface: #ffffff;
+	--surface-2: #f5f7f6;
+	--ink: #16232b;
+	--ink-2: #4b5b63;
+	--ink-3: #7a8a91;
+	--line: #d5dcdb;
+	--accent: #1f5f7a;
+	--accent-ink: #ffffff;
+	--accent-soft: #dcebf1;
+	--copper: #b25a1a;
+	--copper-soft: #f6e6d8;
+	--good: #2e7d4f;
+	--good-soft: #dff1e6;
+	--warn: #9a6a00;
+	--warn-soft: #fbf0cf;
+	--bad: #b3261e;
+	--bad-soft: #fbe2df;
+	--radius: 6px;
+	--sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--display: "Archivo", "IBM Plex Sans", system-ui, sans-serif;
+	--mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		color-scheme: dark;
+		--bg: #0f1619;
+		--surface: #172125;
+		--surface-2: #1c292e;
+		--ink: #e3eaec;
+		--ink-2: #a9b8bd;
+		--ink-3: #7d8f95;
+		--line: #2b3a40;
+		--accent: #6fb3cf;
+		--accent-ink: #0b1a20;
+		--accent-soft: #1d3a46;
+		--copper: #e59a5f;
+		--copper-soft: #3d2a1c;
+		--good: #6cc893;
+		--good-soft: #1b3527;
+		--warn: #e3b64a;
+		--warn-soft: #3a3016;
+		--bad: #f08a80;
+		--bad-soft: #43201d;
+	}
+}
+:root[data-theme="dark"] {
+	color-scheme: dark;
+	--bg: #0f1619;
+	--surface: #172125;
+	--surface-2: #1c292e;
+	--ink: #e3eaec;
+	--ink-2: #a9b8bd;
+	--ink-3: #7d8f95;
+	--line: #2b3a40;
+	--accent: #6fb3cf;
+	--accent-ink: #0b1a20;
+	--accent-soft: #1d3a46;
+	--copper: #e59a5f;
+	--copper-soft: #3d2a1c;
+	--good: #6cc893;
+	--good-soft: #1b3527;
+	--warn: #e3b64a;
+	--warn-soft: #3a3016;
+	--bad: #f08a80;
+	--bad-soft: #43201d;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+	background: var(--bg);
+	color: var(--ink);
+	font: 14px/1.5 var(--sans);
+	padding: 0 16px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 20px 48px; }
+h1, h2, h3 { font-family: var(--display); font-stretch: 85%; margin: 0; text-wrap: balance; }
+h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 19px; font-weight: 700; }
+h3 { font-size: 15px; font-weight: 700; }
+.num, td.n, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.muted { color: var(--ink-2); }
+.small { font-size: 12px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; padding-bottom: 14px; border-bottom: 2px solid var(--ink); }
+header.top p { margin: 2px 0 0; color: var(--ink-2); max-width: 60ch; }
+nav.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 14px 0 20px; }
+nav.tabs button {
+	font: 600 13px var(--sans); color: var(--ink-2); background: transparent;
+	border: 1px solid transparent; border-radius: var(--radius); padding: 7px 12px; cursor: pointer;
+}
+nav.tabs button:hover { color: var(--ink); background: var(--surface-2); }
+nav.tabs button[aria-selected="true"] { color: var(--accent-ink); background: var(--accent); }
+
+.grid-2 { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.stack { display: flex; flex-direction: column; gap: 20px; }
+
+label.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+input, select, textarea {
+	font: 14px var(--sans); color: var(--ink); background: var(--surface);
+	border: 1px solid var(--line); border-radius: var(--radius); padding: 7px 9px; width: 100%; min-width: 0;
+}
+input[type="number"] { font-family: var(--mono); }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.check input { width: auto; }
+
+.btn {
+	font: 600 13px var(--sans); border-radius: var(--radius); padding: 8px 14px; cursor: pointer;
+	border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.make { background: var(--copper); border-color: var(--copper); color: #fff; font-size: 14px; padding: 10px 18px; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--accent); padding: 4px 8px; }
+.btn.danger { color: var(--bad); }
+.btn.danger.armed { background: var(--bad); color: #fff; border-color: var(--bad); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.row-actions { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); background: var(--surface-2); padding: 8px 10px; white-space: nowrap; }
+td { padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: middle; }
+th.n, td.n { text-align: right; white-space: nowrap; }
+td input, td select { padding: 5px 7px; font-size: 13px; }
+td input[type="number"] { max-width: 110px; text-align: right; margin-left: auto; display: block; }
+tr.total td { font-weight: 600; background: var(--surface-2); }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--surface-2); }
+tr.detail td { background: var(--surface-2); }
+.empty { padding: 24px; text-align: center; color: var(--ink-3); }
+
+.chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.chip.raw { background: var(--accent-soft); color: var(--accent); }
+.chip.fg { background: var(--copper-soft); color: var(--copper); }
+.chip.ok { background: var(--good-soft); color: var(--good); }
+.chip.low { background: var(--warn-soft); color: var(--warn); }
+.chip.short { background: var(--bad-soft); color: var(--bad); }
+
+.sheet { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.sheet-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border-top: 1px solid var(--line); }
+.sheet-sum div { padding: 12px 14px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.sheet-sum div:last-child { border-right: 0; background: var(--copper-soft); }
+.sheet-sum .num { font-size: 18px; font-weight: 500; }
+.sheet-sum div:last-child .num { color: var(--copper); font-size: 22px; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+.tile .num { font-size: 20px; }
+
+.notice { font-size: 13px; padding: 10px 12px; border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); }
+.notice.bad { background: var(--bad-soft); color: var(--bad); }
+.notice.info { background: var(--accent-soft); color: var(--accent); }
+.sample-flag { font-size: 12px; color: var(--ink-3); }
+
+#toast {
+	position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+	background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: var(--radius); font-weight: 600; font-size: 13px;
+	transition: opacity .2s; opacity: 0; pointer-events: none;
+}
+#toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+textarea { font-family: var(--mono); font-size: 12px; min-height: 120px; }
+</style>
+
+<div class="wrap">
+	<header class="top">
+		<div>
+			<div class="eyebrow">Manufacturing · Bill of materials · Stock</div>
+			<h1>Batch Manufacturing Ledger</h1>
+			<p>Define raw materials, set the bill of materials for each finished good, and record production. Stock and batch cost update automatically, the same way the manufacturing option works in Vyapar.</p>
+		</div>
+		<div class="sample-flag" id="sample-flag"></div>
+	</header>
+
+	<nav class="tabs" role="tablist" aria-label="Sections">
+		<button role="tab" data-view="make" aria-selected="true">Manufacture</button>
+		<button role="tab" data-view="bom" aria-selected="false">Bill of materials</button>
+		<button role="tab" data-view="items" aria-selected="false">Items</button>
+		<button role="tab" data-view="history" aria-selected="false">Manufacturing history</button>
+		<button role="tab" data-view="stock" aria-selected="false">Stock summary</button>
+	</nav>
+
+	<!-- MANUFACTURE -->
+	<section id="view-make" class="grid-2">
+		<div class="panel">
+			<h2>New manufacturing entry</h2>
+			<label class="field">Finished good
+				<select id="mf-item"></select>
+			</label>
+			<div class="fields">
+				<label class="field">Quantity to make <input id="mf-qty" type="number" min="0" step="any" value="1"></label>
+				<label class="field">Unit <input id="mf-unit" type="text" disabled></label>
+			</div>
+			<div class="fields">
+				<label class="field">Date <input id="mf-date" type="date"></label>
+				<label class="field">Reference no. <input id="mf-ref" type="text"></label>
+			</div>
+			<label class="field">Note <input id="mf-note" type="text" placeholder="Optional"></label>
+			<label class="check"><input id="mf-updcost" type="checkbox" checked> Set the finished good's purchase price to this batch's cost per unit</label>
+			<label class="check"><input id="mf-neg" type="checkbox"> Allow negative stock for raw materials</label>
+		</div>
+		<div class="panel">
+			<div class="panel-head">
+				<h2>Cost sheet</h2>
+				<button class="btn ghost" id="mf-reset" type="button">Reload from bill of materials</button>
+			</div>
+			<div id="mf-msg"></div>
+			<div class="sheet">
+				<div class="table-wrap" style="border:0;border-radius:0">
+					<table>
+						<thead><tr><th>Raw material</th><th class="n">Qty used</th><th class="n">In stock</th><th class="n">Rate</th><th class="n">Amount</th><th></th></tr></thead>
+						<tbody id="mf-mats"></tbody>
+					</table>
+				</div>
+				<div class="table-wrap" style="border:0;border-radius:0;border-top:1px solid var(--line)">
+					<table>
+						<thead><tr><th>Additional cost</th><th class="n">Amount</th><th></th></tr></thead>
+						<tbody id="mf-costs"></tbody>
+					</table>
+				</div>
+				<div class="sheet-sum">
+					<div><span class="eyebrow">Raw materials</span><span class="num" id="mf-t-raw">–</span></div>
+					<div><span class="eyebrow">Additional costs</span><span class="num" id="mf-t-add">–</span></div>
+					<div><span class="eyebrow">Total cost</span><span class="num" id="mf-t-total">–</span></div>
+					<div><span class="eyebrow">Cost per unit</span><span class="num" id="mf-t-unit">–</span></div>
+				</div>
+			</div>
+			<div class="actions">
+				<button class="btn" type="button" id="mf-addmat">Add raw material</button>
+				<button class="btn" type="button" id="mf-addcost">Add cost</button>
+				<span style="flex:1"></span>
+				<button class="btn make" type="button" id="mf-save">Save manufacturing</button>
+			</div>
+		</div>
+	</section>
+
+	<!-- BOM -->
+	<section id="view-bom" class="grid-2" hidden>
+		<div class="panel">
+			<h2>Bill of materials</h2>
+			<p class="muted small" style="margin:0">Pick a finished good. List the raw materials and extra costs needed to make one batch. Manufacturing entries scale these numbers to the quantity you make.</p>
+			<label class="field">Finished good <select id="bom-item"></select></label>
+			<label class="field">One batch makes <input id="bom-yield" type="number" min="0" step="any" value="1"></label>
+			<div id="bom-summary" class="small muted"></div>
+		</div>
+		<div class="panel">
+			<div class="panel-head"><h2 id="bom-title">Materials per batch</h2></div>
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Raw material</th><th class="n">Qty</th><th>Unit</th><th class="n">Rate</th><th class="n">Amount</th><th></th></tr></thead>
+					<tbody id="bom-mats"></tbody>
+				</table>
+			</div>
+			<div class="actions"><button class="btn" type="button" id="bom-addmat">Add raw material</button></div>
+			<h3>Additional costs per batch</h3>
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Cost</th><th class="n">Amount</th><th></th></tr></thead>
+					<tbody id="bom-costs"></tbody>
+				</table>
+			</div>
+			<div class="actions">
+				<button class="btn" type="button" id="bom-addcost">Add cost</button>
+				<span style="flex:1"></span>
+				<button class="btn primary" type="button" id="bom-save">Save bill of materials</button>
+			</div>
+		</div>
+	</section>
+
+	<!-- ITEMS -->
+	<section id="view-items" class="grid-2" hidden>
+		<form class="panel" id="it-form" autocomplete="off">
+			<h2 id="it-form-title">Add item</h2>
+			<input type="hidden" id="it-id">
+			<label class="field">Item name <input id="it-name" type="text" required></label>
+			<div class="fields">
+				<label class="field">Type
+					<select id="it-kind">
+						<option value="raw">Raw material</option>
+						<option value="fg">Finished good</option>
+					</select>
+				</label>
+				<label class="field">Unit
+					<input id="it-unit" type="text" list="units" value="PCS" required>
+					<datalist id="units">
+						<option value="PCS"></option><option value="KGS"></option><option value="GMS"></option>
+						<option value="LTR"></option><option value="MLT"></option><option value="MTR"></option>
+						<option value="SQF"></option><option value="BOX"></option><option value="BAG"></option>
+						<option value="ROL"></option><option value="SET"></option><option value="NOS"></option>
+					</datalist>
+				</label>
+			</div>
+			<div class="fields">
+				<label class="field">Purchase price (₹) <input id="it-cost" type="number" min="0" step="any" value="0"></label>
+				<label class="field">Sale price (₹) <input id="it-price" type="number" min="0" step="any" value="0"></label>
+			</div>
+			<div class="fields">
+				<label class="field">Opening stock <input id="it-open" type="number" step="any" value="0"></label>
+				<label class="field">Low stock alert at <input id="it-min" type="number" min="0" step="any" value="0"></label>
+			</div>
+			<div id="it-msg"></div>
+			<div class="actions">
+				<button class="btn primary" type="submit" id="it-submit">Add item</button>
+				<button class="btn" type="button" id="it-cancel" hidden>Cancel edit</button>
+			</div>
+		</form>
+		<div class="panel">
+			<div class="panel-head">
+				<h2>Items</h2>
+				<select id="it-filter" style="width:auto">
+					<option value="all">All items</option>
+					<option value="raw">Raw materials</option>
+					<option value="fg">Finished goods</option>
+				</select>
+			</div>
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Item</th><th>Type</th><th class="n">Stock</th><th class="n">Purchase</th><th class="n">Sale</th><th></th></tr></thead>
+					<tbody id="it-rows"></tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+
+	<!-- HISTORY -->
+	<section id="view-history" class="stack" hidden>
+		<div class="panel">
+			<div class="panel-head">
+				<h2>Manufacturing history</h2>
+				<span class="small muted">Select a row to see materials used. Deleting an entry puts its stock back.</span>
+			</div>
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Date</th><th>Ref no.</th><th>Finished good</th><th class="n">Qty made</th><th class="n">Total cost</th><th class="n">Cost / unit</th><th></th></tr></thead>
+					<tbody id="hi-rows"></tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+
+	<!-- STOCK -->
+	<section id="view-stock" class="stack" hidden>
+		<div class="tiles" id="st-tiles"></div>
+		<div class="panel">
+			<h2>Stock summary</h2>
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Item</th><th>Type</th><th class="n">Opening</th><th class="n">Made</th><th class="n">Used</th><th class="n">Closing</th><th class="n">Value</th><th>Status</th></tr></thead>
+					<tbody id="st-rows"></tbody>
+				</table>
+			</div>
+		</div>
+		<div class="panel">
+			<h2>Backup and restore</h2>
+			<p class="muted small" style="margin:0">Your data stays in this browser. Copy a backup to keep it safe or move it to another device. Paste a backup and select Restore to load it.</p>
+			<textarea id="bk-text" aria-label="Backup data" spellcheck="false"></textarea>
+			<div class="actions">
+				<button class="btn" type="button" id="bk-copy">Copy backup</button>
+				<button class="btn" type="button" id="bk-restore">Restore from text</button>
+				<label class="btn" for="bk-file" style="display:inline-block">Open backup file</label>
+				<input id="bk-file" type="file" accept=".json,application/json" hidden>
+				<span style="flex:1"></span>
+				<button class="btn danger" type="button" id="bk-sample">Reset to sample data</button>
+				<button class="btn danger" type="button" id="bk-clear">Clear all data</button>
+			</div>
+			<div id="bk-msg"></div>
+		</div>
+	</section>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+	const STORE_KEY = 'batch-mfg-ledger-v1';
+	const $ = (id) => document.getElementById(id);
+	const inr = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
+	const qf = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 3 });
+	const money = (n) => inr.format(Number.isFinite(n) ? n : 0);
+	const qty = (n) => qf.format(Number.isFinite(n) ? n : 0);
+	const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+	const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+	const today = () => new Date().toISOString().slice(0, 10);
+
+	function sampleData() {
+		const d = (offset) => { const t = new Date(); t.setDate(t.getDate() - offset); return t.toISOString().slice(0, 10); };
+		return {
+			sample: true,
+			seq: 20,
+			mfgSeq: 3,
+			items: [
+				{ id: 1, name: 'Teak wood plank', kind: 'raw', unit: 'SQF', cost: 420, price: 0, opening: 180, minStock: 40 },
+				{ id: 2, name: 'Plywood sheet 18mm', kind: 'raw', unit: 'PCS', cost: 1850, price: 0, opening: 24, minStock: 6 },
+				{ id: 3, name: 'Wood screws 1.5"', kind: 'raw', unit: 'BOX', cost: 95, price: 0, opening: 40, minStock: 10 },
+				{ id: 4, name: 'PU varnish', kind: 'raw', unit: 'LTR', cost: 540, price: 0, opening: 18, minStock: 5 },
+				{ id: 5, name: 'Drawer channel set', kind: 'raw', unit: 'SET', cost: 260, price: 0, opening: 30, minStock: 8 },
+				{ id: 6, name: 'Brass handle', kind: 'raw', unit: 'PCS', cost: 75, price: 0, opening: 60, minStock: 20 },
+				{ id: 10, name: 'Study table (2 drawer)', kind: 'fg', unit: 'PCS', cost: 7890, price: 12500, opening: 2, minStock: 3 },
+				{ id: 11, name: 'Bookshelf 4-tier', kind: 'fg', unit: 'PCS', cost: 0, price: 8900, opening: 0, minStock: 2 },
+			],
+			boms: {
+				10: {
+					yield: 1,
+					materials: [
+						{ itemId: 1, qty: 12 }, { itemId: 2, qty: 0.5 }, { itemId: 3, qty: 0.5 },
+						{ itemId: 4, qty: 0.75 }, { itemId: 5, qty: 2 }, { itemId: 6, qty: 2 },
+					],
+					costs: [
+						{ label: 'Labour charge', amount: 650 }, { label: 'Electricity cost', amount: 60 },
+						{ label: 'Packaging charge', amount: 180 },
+					],
+				},
+				11: {
+					yield: 1,
+					materials: [{ itemId: 1, qty: 9 }, { itemId: 2, qty: 1 }, { itemId: 3, qty: 0.5 }, { itemId: 4, qty: 0.6 }],
+					costs: [{ label: 'Labour charge', amount: 480 }, { label: 'Electricity cost', amount: 40 }, { label: 'Packaging charge', amount: 150 }],
+				},
+			},
+			mfg: [
+				{
+					id: 1, ref: 'MFG-001', date: d(12), fgId: 10, qty: 4, note: 'Order for school library',
+					materials: [
+						{ itemId: 1, qty: 48, rate: 420 }, { itemId: 2, qty: 2, rate: 1850 }, { itemId: 3, qty: 2, rate: 95 },
+						{ itemId: 4, qty: 3, rate: 540 }, { itemId: 5, qty: 8, rate: 260 }, { itemId: 6, qty: 8, rate: 75 },
+					],
+					costs: [{ label: 'Labour charge', amount: 2600 }, { label: 'Electricity cost', amount: 240 }, { label: 'Packaging charge', amount: 720 }],
+				},
+				{
+					id: 2, ref: 'MFG-002', date: d(4), fgId: 11, qty: 3, note: '',
+					materials: [{ itemId: 1, qty: 27, rate: 420 }, { itemId: 2, qty: 3, rate: 1850 }, { itemId: 3, qty: 1.5, rate: 95 }, { itemId: 4, qty: 1.8, rate: 540 }],
+					costs: [{ label: 'Labour charge', amount: 1440 }, { label: 'Electricity cost', amount: 120 }, { label: 'Packaging charge', amount: 450 }],
+				},
+			],
+		};
+	}
+	function emptyData() { return { sample: false, seq: 0, mfgSeq: 0, items: [], boms: {}, mfg: [] }; }
+
+	function load() {
+		try {
+			const raw = localStorage.getItem(STORE_KEY);
+			if (raw) return normalize(JSON.parse(raw));
+		} catch (e) { /* storage blocked or corrupt: fall back to sample */ }
+		return sampleData();
+	}
+	function save() {
+		try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); } catch (e) { /* storage unavailable */ }
+	}
+	function normalize(d) {
+		if (!d || !Array.isArray(d.items) || !Array.isArray(d.mfg) || typeof d.boms !== 'object') throw new Error('bad data');
+		return { sample: !!d.sample, seq: num(d.seq), mfgSeq: num(d.mfgSeq), items: d.items, boms: d.boms || {}, mfg: d.mfg };
+	}
+
+	let db = load();
+	const item = (id) => db.items.find((i) => i.id === Number(id));
+	const nextId = () => ++db.seq;
+	const mfgTotals = (m) => {
+		const raw = m.materials.reduce((s, r) => s + num(r.qty) * num(r.rate), 0);
+		const add = m.costs.reduce((s, c) => s + num(c.amount), 0);
+		return { raw, add, total: raw + add, unit: m.qty > 0 ? (raw + add) / m.qty : 0 };
+	};
+	function movement(id) {
+		let made = 0, used = 0;
+		for (const m of db.mfg) {
+			if (m.fgId === id) made += num(m.qty);
+			for (const r of m.materials) if (r.itemId === id) used += num(r.qty);
+		}
+		return { made, used };
+	}
+	function stock(id) { const it = item(id); const mv = movement(id); return num(it?.opening) + mv.made - mv.used; }
+	function stockChip(it) {
+		const s = stock(it.id);
+		if (s < 0) return '<span class="chip short">Negative</span>';
+		if (it.minStock > 0 && s <= it.minStock) return '<span class="chip low">Low stock</span>';
+		return '<span class="chip ok">In stock</span>';
+	}
+	const kindChip = (k) => k === 'fg' ? '<span class="chip fg">Finished good</span>' : '<span class="chip raw">Raw material</span>';
+
+	function toast(msg) {
+		const t = $('toast'); t.textContent = msg; t.classList.add('show');
+		clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1800);
+	}
+	function commit(msg) {
+		if (db.sample) db.sample = false;
+		save(); renderAll(); if (msg) toast(msg);
+	}
+	function flagSample() {
+		$('sample-flag').textContent = db.sample ? 'Showing example data for a furniture workshop. Edit anything to start your own.' : '';
+	}
+
+	/* Two-step delete: first click arms the button, second click confirms. */
+	function armed(btn) {
+		if (btn.classList.contains('armed')) return true;
+		document.querySelectorAll('.btn.armed').forEach((b) => { b.classList.remove('armed'); b.textContent = b.dataset.label; });
+		btn.dataset.label = btn.textContent; btn.classList.add('armed'); btn.textContent = 'Confirm';
+		setTimeout(() => { if (btn.isConnected && btn.classList.contains('armed')) { btn.classList.remove('armed'); btn.textContent = btn.dataset.label; } }, 3500);
+		return false;
+	}
+
+	/* ---------- Tabs ---------- */
+	const views = ['make', 'bom', 'items', 'history', 'stock'];
+	function show(view) {
+		if (!views.includes(view)) view = 'make';
+		for (const v of views) $('view-' + v).hidden = v !== view;
+		document.querySelectorAll('nav.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === view)));
+		try { localStorage.setItem(STORE_KEY + ':tab', view); } catch (e) {}
+		renderView(view);
+	}
+	document.querySelector('nav.tabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-view]'); if (b) show(b.dataset.view); });
+	let current = () => views.find((v) => !$('view-' + v).hidden);
+
+	function fgOptions(sel, selected) {
+		const fgs = db.items.filter((i) => i.kind === 'fg');
+		sel.innerHTML = fgs.length
+			? fgs.map((i) => `<option value="${i.id}" ${i.id === Number(selected) ? 'selected' : ''}>${esc(i.name)}${db.boms[i.id] ? '' : ' (no bill of materials)'}</option>`).join('')
+			: '<option value="">Add a finished good first</option>';
+	}
+	function rawOptions(selected) {
+		return db.items.filter((i) => i.kind === 'raw').map((i) => `<option value="${i.id}" ${i.id === Number(selected) ? 'selected' : ''}>${esc(i.name)} (${esc(i.unit)})</option>`).join('');
+	}
+
+	/* ---------- Manufacture ---------- */
+	let draft = null;
+	function buildDraft(fgId, q) {
+		const bom = db.boms[fgId];
+		const f = bom && bom.yield > 0 ? q / bom.yield : 0;
+		draft = {
+			fgId,
+			materials: bom ? bom.materials.map((m) => ({ itemId: m.itemId, qty: round(m.qty * f) })) : [],
+			costs: bom ? bom.costs.map((c) => ({ label: c.label, amount: round(c.amount * f) })) : [],
+		};
+	}
+	const round = (n) => Math.round(n * 1000) / 1000;
+	function nextRef() { return 'MFG-' + String(db.mfgSeq + 1).padStart(3, '0'); }
+
+	function renderMake(rebuild) {
+		const sel = $('mf-item');
+		const prev = Number(sel.value) || (draft && draft.fgId) || (db.items.find((i) => i.kind === 'fg' && db.boms[i.id]) || {}).id;
+		fgOptions(sel, prev);
+		const fgId = Number(sel.value);
+		const fg = item(fgId);
+		$('mf-unit').value = fg ? fg.unit : '';
+		if (!$('mf-date').value) $('mf-date').value = today();
+		if (!$('mf-ref').value || $('mf-ref').dataset.auto === '1') { $('mf-ref').value = nextRef(); $('mf-ref').dataset.auto = '1'; }
+		if (rebuild || !draft || draft.fgId !== fgId) buildDraft(fgId, num($('mf-qty').value));
+		renderSheet();
+	}
+	function renderSheet() {
+		const q = num($('mf-qty').value);
+		const fg = item(draft.fgId);
+		const allowNeg = $('mf-neg').checked;
+		let raw = 0, shortCount = 0;
+		const opts = rawOptions();
+		$('mf-mats').innerHTML = draft.materials.length ? draft.materials.map((r, i) => {
+			const it = item(r.itemId);
+			const have = it ? stock(it.id) : 0;
+			const rate = it ? num(it.cost) : 0;
+			const amt = num(r.qty) * rate; raw += amt;
+			const short = it && num(r.qty) > have;
+			if (short) shortCount++;
+			return `<tr>
+				<td><select data-mat-item="${i}" aria-label="Raw material">${it ? '' : '<option value="">Choose…</option>'}${rawOptions(r.itemId)}</select></td>
+				<td class="n"><input type="number" min="0" step="any" value="${r.qty}" data-mat-qty="${i}" aria-label="Quantity used"></td>
+				<td class="n">${it ? qty(have) + ' ' + esc(it.unit) : '–'} ${short ? `<br><span class="chip short">Short by ${qty(num(r.qty) - have)}</span>` : ''}</td>
+				<td class="n">${money(rate)}</td>
+				<td class="n">${money(amt)}</td>
+				<td><button class="btn ghost" type="button" data-mat-del="${i}" aria-label="Remove">✕</button></td>
+			</tr>`;
+		}).join('') : `<tr><td colspan="6" class="empty">${opts ? 'No raw materials. Add a bill of materials or add rows here.' : 'Add raw materials on the Items tab first.'}</td></tr>`;
+		let add = 0;
+		$('mf-costs').innerHTML = draft.costs.length ? draft.costs.map((c, i) => {
+			add += num(c.amount);
+			return `<tr>
+				<td><input type="text" value="${esc(c.label)}" data-cost-label="${i}" aria-label="Cost name"></td>
+				<td class="n"><input type="number" min="0" step="any" value="${c.amount}" data-cost-amt="${i}" aria-label="Amount"></td>
+				<td><button class="btn ghost" type="button" data-cost-del="${i}" aria-label="Remove">✕</button></td>
+			</tr>`;
+		}).join('') : '<tr><td colspan="3" class="empty">No additional costs such as labour, electricity or packaging.</td></tr>';
+		const total = raw + add;
+		$('mf-t-raw').textContent = money(raw);
+		$('mf-t-add').textContent = money(add);
+		$('mf-t-total').textContent = money(total);
+		$('mf-t-unit').textContent = q > 0 ? money(total / q) : '–';
+
+		const msgs = [];
+		if (!fg) msgs.push('<div class="notice info">Add a finished good on the Items tab, then set up its bill of materials.</div>');
+		else if (!db.boms[fg.id]) msgs.push(`<div class="notice info">${esc(fg.name)} has no bill of materials yet. Add rows below, or set one up on the Bill of materials tab.</div>`);
+		if (shortCount) msgs.push(`<div class="notice ${allowNeg ? '' : 'bad'}">${shortCount} raw material${shortCount > 1 ? 's are' : ' is'} short. ${allowNeg ? 'Stock will go negative.' : 'Reduce the quantity, add stock, or allow negative stock.'}</div>`);
+		$('mf-msg').innerHTML = msgs.join('');
+		$('mf-save').disabled = !fg || q <= 0 || (shortCount > 0 && !allowNeg) || draft.materials.some((r) => !item(r.itemId));
+	}
+
+	$('mf-item').addEventListener('change', () => renderMake(true));
+	$('mf-qty').addEventListener('input', () => { buildDraft(Number($('mf-item').value), num($('mf-qty').value)); renderSheet(); });
+	$('mf-neg').addEventListener('change', renderSheet);
+	$('mf-ref').addEventListener('input', () => { $('mf-ref').dataset.auto = '0'; });
+	$('mf-reset').addEventListener('click', () => { buildDraft(Number($('mf-item').value), num($('mf-qty').value)); renderSheet(); });
+	$('mf-addmat').addEventListener('click', () => { const r = db.items.find((i) => i.kind === 'raw'); draft.materials.push({ itemId: r ? r.id : 0, qty: 0 }); renderSheet(); });
+	$('mf-addcost').addEventListener('click', () => { draft.costs.push({ label: 'Other charges', amount: 0 }); renderSheet(); });
+	$('view-make').addEventListener('change', (e) => {
+		const t = e.target;
+		if (t.dataset.matItem !== undefined) { draft.materials[t.dataset.matItem].itemId = Number(t.value); renderSheet(); }
+		if (t.dataset.matQty !== undefined || t.dataset.costAmt !== undefined) renderSheet();
+	});
+	$('view-make').addEventListener('input', (e) => {
+		const t = e.target;
+		if (t.dataset.matQty !== undefined) draft.materials[t.dataset.matQty].qty = num(t.value);
+		if (t.dataset.costAmt !== undefined) draft.costs[t.dataset.costAmt].amount = num(t.value);
+		if (t.dataset.costLabel !== undefined) draft.costs[t.dataset.costLabel].label = t.value;
+	});
+	$('view-make').addEventListener('click', (e) => {
+		const t = e.target.closest('button'); if (!t) return;
+		if (t.dataset.matDel !== undefined) { draft.materials.splice(Number(t.dataset.matDel), 1); renderSheet(); }
+		if (t.dataset.costDel !== undefined) { draft.costs.splice(Number(t.dataset.costDel), 1); renderSheet(); }
+	});
+	$('mf-save').addEventListener('click', () => {
+		const q = num($('mf-qty').value);
+		const fg = item(draft.fgId);
+		if (!fg || q <= 0) return;
+		const entry = {
+			id: nextId(),
+			ref: $('mf-ref').value.trim() || nextRef(),
+			date: $('mf-date').value || today(),
+			fgId: fg.id,
+			qty: q,
+			note: $('mf-note').value.trim(),
+			materials: draft.materials.filter((r) => num(r.qty) > 0).map((r) => ({ itemId: r.itemId, qty: num(r.qty), rate: num(item(r.itemId).cost) })),
+			costs: draft.costs.filter((c) => num(c.amount) > 0).map((c) => ({ label: c.label.trim() || 'Other charges', amount: num(c.amount) })),
+		};
+		db.mfg.push(entry);
+		db.mfgSeq++;
+		if ($('mf-updcost').checked) fg.cost = round(mfgTotals(entry).unit * 100) / 100;
+		$('mf-note').value = '';
+		$('mf-ref').dataset.auto = '1'; $('mf-ref').value = '';
+		draft = null;
+		commit(`Saved ${entry.ref}: ${qty(q)} ${fg.unit} of ${fg.name}`);
+	});
+
+	/* ---------- Bill of materials ---------- */
+	let bomDraft = null;
+	function loadBomDraft(fgId) {
+		const b = db.boms[fgId];
+		bomDraft = b
+			? { fgId, yield: b.yield, materials: b.materials.map((m) => ({ ...m })), costs: b.costs.map((c) => ({ ...c })) }
+			: { fgId, yield: 1, materials: [], costs: [{ label: 'Labour charge', amount: 0 }, { label: 'Electricity cost', amount: 0 }, { label: 'Packaging charge', amount: 0 }] };
+		$('bom-yield').value = bomDraft.yield;
+	}
+	function renderBom(reload) {
+		const sel = $('bom-item');
+		const prev = Number(sel.value) || (bomDraft && bomDraft.fgId) || (db.items.find((i) => i.kind === 'fg') || {}).id;
+		fgOptions(sel, prev);
+		const fgId = Number(sel.value);
+		if (reload || !bomDraft || bomDraft.fgId !== fgId) loadBomDraft(fgId);
+		renderBomTables();
+	}
+	function renderBomTables() {
+		const fg = item(bomDraft.fgId);
+		$('bom-title').textContent = fg ? `Materials for ${fg.name}` : 'Materials per batch';
+		let raw = 0;
+		$('bom-mats').innerHTML = bomDraft.materials.length ? bomDraft.materials.map((m, i) => {
+			const it = item(m.itemId); const amt = num(m.qty) * num(it?.cost); raw += amt;
+			return `<tr>
+				<td><select data-bmat-item="${i}" aria-label="Raw material">${it ? '' : '<option value="">Choose…</option>'}${rawOptions(m.itemId)}</select></td>
+				<td class="n"><input type="number" min="0" step="any" value="${m.qty}" data-bmat-qty="${i}" aria-label="Quantity"></td>
+				<td>${it ? esc(it.unit) : ''}</td>
+				<td class="n">${money(num(it?.cost))}</td>
+				<td class="n">${money(amt)}</td>
+				<td><button class="btn ghost" type="button" data-bmat-del="${i}" aria-label="Remove">✕</button></td>
+			</tr>`;
+		}).join('') : '<tr><td colspan="6" class="empty">No raw materials yet. Select Add raw material.</td></tr>';
+		let add = 0;
+		$('bom-costs').innerHTML = bomDraft.costs.length ? bomDraft.costs.map((c, i) => {
+			add += num(c.amount);
+			return `<tr>
+				<td><input type="text" value="${esc(c.label)}" data-bcost-label="${i}" aria-label="Cost name"></td>
+				<td class="n"><input type="number" min="0" step="any" value="${c.amount}" data-bcost-amt="${i}" aria-label="Amount"></td>
+				<td><button class="btn ghost" type="button" data-bcost-del="${i}" aria-label="Remove">✕</button></td>
+			</tr>`;
+		}).join('') : '<tr><td colspan="3" class="empty">No additional costs.</td></tr>';
+		const y = num($('bom-yield').value);
+		$('bom-summary').innerHTML = fg
+			? `Batch cost <strong class="mono">${money(raw + add)}</strong> for ${qty(y)} ${esc(fg.unit)}. Estimated cost per unit <strong class="mono">${y > 0 ? money((raw + add) / y) : '–'}</strong>${fg.price ? `, sale price ${money(fg.price)}, margin <strong class="mono">${y > 0 ? money(fg.price - (raw + add) / y) : '–'}</strong>` : ''}.`
+			: 'Add a finished good on the Items tab first.';
+		$('bom-save').disabled = !fg || y <= 0 || bomDraft.materials.some((m) => !item(m.itemId));
+	}
+	$('bom-item').addEventListener('change', () => renderBom(true));
+	$('bom-yield').addEventListener('input', renderBomTables);
+	$('bom-addmat').addEventListener('click', () => { const r = db.items.find((i) => i.kind === 'raw'); bomDraft.materials.push({ itemId: r ? r.id : 0, qty: 1 }); renderBomTables(); });
+	$('bom-addcost').addEventListener('click', () => { bomDraft.costs.push({ label: 'Other charges', amount: 0 }); renderBomTables(); });
+	$('view-bom').addEventListener('input', (e) => {
+		const t = e.target;
+		if (t.dataset.bmatQty !== undefined) bomDraft.materials[t.dataset.bmatQty].qty = num(t.value);
+		if (t.dataset.bcostAmt !== undefined) bomDraft.costs[t.dataset.bcostAmt].amount = num(t.value);
+		if (t.dataset.bcostLabel !== undefined) bomDraft.costs[t.dataset.bcostLabel].label = t.value;
+	});
+	$('view-bom').addEventListener('change', (e) => {
+		const t = e.target;
+		if (t.dataset.bmatItem !== undefined) bomDraft.materials[t.dataset.bmatItem].itemId = Number(t.value);
+		if (t.dataset.bmatItem !== undefined || t.dataset.bmatQty !== undefined || t.dataset.bcostAmt !== undefined) renderBomTables();
+	});
+	$('view-bom').addEventListener('click', (e) => {
+		const t = e.target.closest('button'); if (!t) return;
+		if (t.dataset.bmatDel !== undefined) { bomDraft.materials.splice(Number(t.dataset.bmatDel), 1); renderBomTables(); }
+		if (t.dataset.bcostDel !== undefined) { bomDraft.costs.splice(Number(t.dataset.bcostDel), 1); renderBomTables(); }
+	});
+	$('bom-save').addEventListener('click', () => {
+		const fg = item(bomDraft.fgId); if (!fg) return;
+		db.boms[fg.id] = {
+			yield: num($('bom-yield').value),
+			materials: bomDraft.materials.filter((m) => num(m.qty) > 0),
+			costs: bomDraft.costs.filter((c) => c.label.trim() || num(c.amount) > 0).map((c) => ({ label: c.label.trim() || 'Other charges', amount: num(c.amount) })),
+		};
+		draft = null; bomDraft = null;
+		commit(`Saved bill of materials for ${fg.name}`);
+	});
+
+	/* ---------- Items ---------- */
+	function resetItemForm() {
+		$('it-form').reset(); $('it-id').value = '';
+		$('it-form-title').textContent = 'Add item'; $('it-submit').textContent = 'Add item';
+		$('it-cancel').hidden = true; $('it-msg').innerHTML = '';
+	}
+	function renderItems() {
+		const f = $('it-filter').value;
+		const rows = db.items.filter((i) => f === 'all' || i.kind === f)
+			.sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+		$('it-rows').innerHTML = rows.length ? rows.map((i) => `<tr>
+			<td><strong>${esc(i.name)}</strong>${i.kind === 'fg' && !db.boms[i.id] ? '<br><span class="small muted">No bill of materials</span>' : ''}</td>
+			<td>${kindChip(i.kind)}</td>
+			<td class="n">${qty(stock(i.id))} ${esc(i.unit)}</td>
+			<td class="n">${money(num(i.cost))}</td>
+			<td class="n">${i.price ? money(num(i.price)) : '–'}</td>
+			<td><div class="row-actions">
+				<button class="btn ghost" type="button" data-it-edit="${i.id}">Edit</button>
+				<button class="btn ghost danger" type="button" data-it-del="${i.id}">Delete</button>
+			</div></td>
+		</tr>`).join('') : '<tr><td colspan="6" class="empty">No items yet. Use the form to add raw materials and finished goods.</td></tr>';
+	}
+	$('it-filter').addEventListener('change', renderItems);
+	$('it-cancel').addEventListener('click', resetItemForm);
+	$('it-form').addEventListener('submit', (e) => {
+		e.preventDefault();
+		const name = $('it-name').value.trim();
+		if (!name) { $('it-msg').innerHTML = '<div class="notice bad">Enter an item name.</div>'; return; }
+		const id = Number($('it-id').value);
+		const dup = db.items.find((i) => i.name.toLowerCase() === name.toLowerCase() && i.id !== id);
+		if (dup) { $('it-msg').innerHTML = '<div class="notice bad">An item with this name already exists. Use a different name.</div>'; return; }
+		const kind = $('it-kind').value;
+		const vals = { name, kind, unit: $('it-unit').value.trim().toUpperCase() || 'PCS', cost: num($('it-cost').value), price: num($('it-price').value), opening: num($('it-open').value), minStock: num($('it-min').value) };
+		if (id) {
+			const it = item(id);
+			if (it.kind !== kind && isUsed(id)) { $('it-msg').innerHTML = '<div class="notice bad">This item is used in a bill of materials or in manufacturing history. You cannot change its type.</div>'; return; }
+			Object.assign(it, vals);
+			resetItemForm(); commit(`Updated ${name}`);
+		} else {
+			db.items.push({ id: nextId(), ...vals });
+			resetItemForm(); $('it-kind').value = kind; commit(`Added ${name}`);
+		}
+	});
+	function isUsed(id) {
+		if (db.boms[id]) return true;
+		if (Object.values(db.boms).some((b) => b.materials.some((m) => m.itemId === id))) return true;
+		return db.mfg.some((m) => m.fgId === id || m.materials.some((r) => r.itemId === id));
+	}
+	$('it-rows').addEventListener('click', (e) => {
+		const t = e.target.closest('button'); if (!t) return;
+		if (t.dataset.itEdit) {
+			const it = item(t.dataset.itEdit);
+			$('it-id').value = it.id; $('it-name').value = it.name; $('it-kind').value = it.kind; $('it-unit').value = it.unit;
+			$('it-cost').value = it.cost; $('it-price').value = it.price; $('it-open').value = it.opening; $('it-min').value = it.minStock;
+			$('it-form-title').textContent = 'Edit item'; $('it-submit').textContent = 'Save changes'; $('it-cancel').hidden = false; $('it-msg').innerHTML = '';
+			$('it-name').focus();
+		}
+		if (t.dataset.itDel) {
+			const id = Number(t.dataset.itDel);
+			if (db.mfg.some((m) => m.fgId === id || m.materials.some((r) => r.itemId === id))) {
+				$('it-msg').innerHTML = `<div class="notice bad">${esc(item(id).name)} is used in manufacturing history. Delete those entries first.</div>`; return;
+			}
+			if (!armed(t)) return;
+			const name = item(id).name;
+			db.items = db.items.filter((i) => i.id !== id);
+			delete db.boms[id];
+			for (const b of Object.values(db.boms)) b.materials = b.materials.filter((m) => m.itemId !== id);
+			commit(`Deleted ${name}`);
+		}
+	});
+
+	/* ---------- History ---------- */
+	let openRow = null;
+	function renderHistory() {
+		const rows = [...db.mfg].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+		$('hi-rows').innerHTML = rows.length ? rows.map((m) => {
+			const fg = item(m.fgId); const t = mfgTotals(m);
+			let html = `<tr class="click" data-hi="${m.id}" tabindex="0">
+				<td class="mono">${esc(m.date)}</td><td class="mono">${esc(m.ref)}</td>
+				<td>${esc(fg ? fg.name : 'Deleted item')}${m.note ? `<br><span class="small muted">${esc(m.note)}</span>` : ''}</td>
+				<td class="n">${qty(m.qty)} ${esc(fg ? fg.unit : '')}</td>
+				<td class="n">${money(t.total)}</td><td class="n">${money(t.unit)}</td>
+				<td><div class="row-actions"><button class="btn ghost danger" type="button" data-hi-del="${m.id}">Delete</button></div></td>
+			</tr>`;
+			if (openRow === m.id) {
+				html += `<tr class="detail"><td colspan="7">
+					<div class="table-wrap"><table>
+						<thead><tr><th>Raw material used</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead>
+						<tbody>${m.materials.map((r) => { const it = item(r.itemId); return `<tr><td>${esc(it ? it.name : 'Deleted item')}</td><td class="n">${qty(r.qty)} ${esc(it ? it.unit : '')}</td><td class="n">${money(r.rate)}</td><td class="n">${money(r.qty * r.rate)}</td></tr>`; }).join('')}
+						${m.costs.map((c) => `<tr><td>${esc(c.label)}</td><td></td><td></td><td class="n">${money(c.amount)}</td></tr>`).join('')}
+						<tr class="total"><td>Total</td><td></td><td></td><td class="n">${money(t.total)}</td></tr></tbody>
+					</table></div></td></tr>`;
+			}
+			return html;
+		}).join('') : '<tr><td colspan="7" class="empty">No manufacturing entries yet. Record one on the Manufacture tab.</td></tr>';
+	}
+	$('hi-rows').addEventListener('click', (e) => {
+		const del = e.target.closest('button[data-hi-del]');
+		if (del) {
+			if (!armed(del)) return;
+			const id = Number(del.dataset.hiDel); const m = db.mfg.find((x) => x.id === id);
+			db.mfg = db.mfg.filter((x) => x.id !== id);
+			commit(`Deleted ${m.ref}. Stock restored.`); return;
+		}
+		const row = e.target.closest('tr[data-hi]');
+		if (row) { const id = Number(row.dataset.hi); openRow = openRow === id ? null : id; renderHistory(); }
+	});
+	$('hi-rows').addEventListener('keydown', (e) => {
+		const row = e.target.closest('tr[data-hi]');
+		if (row && (e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); row.click(); }
+	});
+
+	/* ---------- Stock ---------- */
+	function renderStock() {
+		let rawVal = 0, fgVal = 0, low = 0;
+		const rows = [...db.items].sort((a, b) => b.kind.localeCompare(a.kind) || a.name.localeCompare(b.name)).map((i) => {
+			const mv = movement(i.id); const s = stock(i.id); const v = Math.max(s, 0) * num(i.cost);
+			if (i.kind === 'fg') fgVal += v; else rawVal += v;
+			if (s < 0 || (i.minStock > 0 && s <= i.minStock)) low++;
+			return `<tr><td>${esc(i.name)}</td><td>${kindChip(i.kind)}</td>
+				<td class="n">${qty(i.opening)}</td><td class="n">${mv.made ? qty(mv.made) : '–'}</td><td class="n">${mv.used ? qty(mv.used) : '–'}</td>
+				<td class="n"><strong>${qty(s)}</strong> ${esc(i.unit)}</td><td class="n">${money(v)}</td><td>${stockChip(i)}</td></tr>`;
+		});
+		$('st-rows').innerHTML = rows.join('') || '<tr><td colspan="8" class="empty">No items yet.</td></tr>';
+		const month = today().slice(0, 7);
+		const monthMfg = db.mfg.filter((m) => m.date.slice(0, 7) === month);
+		const monthCost = monthMfg.reduce((s, m) => s + mfgTotals(m).total, 0);
+		$('st-tiles').innerHTML = [
+			['Raw material value', money(rawVal)],
+			['Finished goods value', money(fgVal)],
+			['Made this month', `${monthMfg.length} ${monthMfg.length === 1 ? 'entry' : 'entries'} · ${money(monthCost)}`],
+			['Items needing stock', `${low}`],
+		].map(([k, v]) => `<div class="tile"><span class="eyebrow">${k}</span><span class="num">${v}</span></div>`).join('');
+		$('bk-text').value = JSON.stringify(db, null, 2);
+	}
+	$('bk-copy').addEventListener('click', () => {
+		const text = $('bk-text').value;
+		const fallback = () => { $('bk-text').focus(); $('bk-text').select(); $('bk-msg').innerHTML = '<div class="notice info">The backup text is selected. Copy it with your keyboard.</div>'; };
+		try { navigator.clipboard.writeText(text).then(() => toast('Backup copied'), fallback); } catch (e) { fallback(); }
+	});
+	function restore(text) {
+		try { db = normalize(JSON.parse(text)); db.sample = false; draft = null; bomDraft = null; commit('Backup restored'); $('bk-msg').innerHTML = ''; }
+		catch (e) { $('bk-msg').innerHTML = '<div class="notice bad">This text is not a valid backup. Paste the full text from Copy backup.</div>'; }
+	}
+	$('bk-restore').addEventListener('click', () => restore($('bk-text').value));
+	$('bk-file').addEventListener('change', (e) => {
+		const f = e.target.files[0]; if (!f) return;
+		const r = new FileReader(); r.onload = () => restore(String(r.result)); r.readAsText(f); e.target.value = '';
+	});
+	$('bk-sample').addEventListener('click', (e) => { if (!armed(e.currentTarget)) return; db = sampleData(); draft = null; bomDraft = null; save(); renderAll(); toast('Sample data loaded'); });
+	$('bk-clear').addEventListener('click', (e) => { if (!armed(e.currentTarget)) return; db = emptyData(); draft = null; bomDraft = null; save(); renderAll(); toast('All data cleared'); });
+
+	/* ---------- Render ---------- */
+	function renderView(v) {
+		if (v === 'make') renderMake();
+		if (v === 'bom') renderBom();
+		if (v === 'items') renderItems();
+		if (v === 'history') renderHistory();
+		if (v === 'stock') renderStock();
+	}
+	function renderAll() { flagSample(); renderView(current()); }
+
+	flagSample();
+	let startTab = 'make';
+	try { startTab = localStorage.getItem(STORE_KEY + ':tab') || 'make'; } catch (e) {}
+	if (location.hash && views.includes(location.hash.slice(1))) startTab = location.hash.slice(1);
+	show(startTab);
+})();
+</script>
